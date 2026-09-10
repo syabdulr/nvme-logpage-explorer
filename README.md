@@ -99,8 +99,13 @@ run unchanged against a physical drive.
 
 ```
 explore.py                 the tool
+tests/test_explore.py      unit tests for the decode / normalise / rule logic
 env/                       emulated-device setup (vng + plain-QEMU fallback)
+scripts/capture.sh         the full baseline→workload→diff→poll sequence
 docs/command-reference.md  every command, annotated
 docs/findings.md           recorded output + the OCP-vs-standard-SMART comparison
 samples/project1/          committed JSON captures for reference
 ```
+
+`make test` runs the unit tests (pure logic, no device); they also assert the
+committed captures still decode consistently.

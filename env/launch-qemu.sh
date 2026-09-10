@@ -21,8 +21,10 @@ SEED_ISO="$ENV_DIR/seed.iso"
 SSH_KEY="$ENV_DIR/id_lab"
 PIDFILE="$ENV_DIR/qemu.pid"
 SSH_PORT="${SSH_PORT:-2222}"
-SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
-          -i "$SSH_KEY" -p "$SSH_PORT")
+SSH_BASE=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
+          -i "$SSH_KEY")
+SSH_OPTS=("${SSH_BASE[@]}" -p "$SSH_PORT")   # ssh: -p PORT
+SCP_OPTS=("${SSH_BASE[@]}" -P "$SSH_PORT")   # scp: -P PORT
 
 prepare() {
   require "$QEMU_BIN"; require qemu-img
@@ -69,7 +71,7 @@ up() {
   log "booting guest (accel=$accel) — ssh will come up on port $SSH_PORT"
   "$QEMU_BIN" \
     -name nvme-lab -machine q35,accel=$accel -cpu max -smp "${VM_CPUS:-4}" -m "${VM_MEM:-2G}" \
-    -nographic -serial file:"$ENV_DIR/console.log" -monitor none \
+    -display none -vga none -serial file:"$ENV_DIR/console.log" -monitor none \
     -drive file="$GUEST_IMG",if=virtio,format=qcow2 \
     -drive file="$SEED_ISO",if=virtio,format=raw,readonly=on \
     "${NVME_QEMU_ARGS[@]}" \
@@ -99,14 +101,19 @@ ssh_guest() {
 pull() {
   is_running || die "guest not running"
   local f="$1"
-  scp "${SSH_OPTS[@]}" lab@127.0.0.1:"$f" "$REPO_ROOT/output/"
+  mkdir -p "$REPO_ROOT/output"
+  scp "${SCP_OPTS[@]}" lab@127.0.0.1:"$f" "$REPO_ROOT/output/"
+  log "pulled $(basename "$f") -> output/"
 }
 
 down() {
   if is_running; then
-    log "powering off"
-    ssh "${SSH_OPTS[@]}" lab@127.0.0.1 'sudo poweroff' 2>/dev/null || kill "$(cat "$PIDFILE")" 2>/dev/null || true
-    sleep 2
+    local pid; pid="$(cat "$PIDFILE")"
+    log "powering off (pid $pid)"
+    ssh "${SSH_OPTS[@]}" lab@127.0.0.1 'sudo poweroff' 2>/dev/null || true
+    for _ in $(seq 1 20); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+    if kill -0 "$pid" 2>/dev/null; then log "still up, sending SIGTERM"; kill "$pid" 2>/dev/null || true; sleep 3; fi
+    if kill -0 "$pid" 2>/dev/null; then log "forcing SIGKILL";        kill -9 "$pid" 2>/dev/null || true; sleep 1; fi
   fi
   rm -f "$PIDFILE"
   log "down. (guest.qcow2 / seed.iso / base image kept — 'clean' removes them)"

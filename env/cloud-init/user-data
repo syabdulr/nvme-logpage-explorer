@@ -1,13 +1,12 @@
 #cloud-config
 # NoCloud seed for the plain-QEMU fallback guest (env/launch-qemu.sh).
 hostname: nvme-lab
+ssh_pwauth: false
 users:
   - name: lab
     sudo: ["ALL=(ALL) NOPASSWD:ALL"]
     shell: /bin/bash
-    lock_passwd: false
-    # password: "lab" (for console login; SSH uses the key injected by launch-qemu.sh)
-    passwd: "$6$rounds=4096$saltsalt$3xkknJ8k6f8Zq0m4Qpq0V0oQ0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m1"
+    lock_passwd: true
     ssh_authorized_keys:
       - SSH_PUBKEY_PLACEHOLDER
 

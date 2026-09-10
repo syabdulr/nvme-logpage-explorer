@@ -28,12 +28,18 @@ script also `modprobe nvme` as a fallback.
 ## Path B — `env/launch-qemu.sh` (fallback, portable)
 
 Boots a full Ubuntu 24.04 minimal cloud image under plain QEMU. Slower first
-boot (cloud-init installs `nvme-cli`), but self-contained and identical to how
-you'd stand this up on a machine without virtme-ng. SSH on `localhost:2222`, repo
-exported read-only at `/mnt/repo` over 9p. Needs `cloud-image-utils`
-(`cloud-localds`) for the seed ISO — `env/setup.sh` installs it. The findings in
-`docs/` were captured via Path A; Path B is provided for reproducibility on other
-machines.
+boot (cloud-init installs `nvme-cli` + `python3`), but self-contained and
+identical to how you'd stand this up on a machine without virtme-ng. SSH on
+`localhost:2222`, repo exported read-only at `/mnt/repo` over 9p. Needs
+`cloud-image-utils` (`cloud-localds`) for the seed ISO — `env/setup.sh` installs
+it.
+
+Verified working on this machine: guest boots (its own 6.8 kernel), the emulated
+`nvme0` enumerates, `nvme ocp smart-add-log` returns the 0xC0 log, and
+`explore.py` runs against it. Note the guest ships nvme-cli **2.8** vs the host's
+**2.16** on Path A — a useful reminder that log-page *bytes* are stable across
+tool versions even when the rendering changes. The findings in `docs/` were
+captured via Path A.
 
 ```
 env/launch-qemu.sh up                 # download image + boot + wait for ssh

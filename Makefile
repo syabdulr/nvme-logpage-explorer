@@ -2,12 +2,13 @@ MAKEFLAGS += --no-print-directory
 NS ?= /dev/nvme0n1
 CTRL ?= /dev/nvme0
 
-.PHONY: help setup check shell baseline workload after diff poll clean
+.PHONY: help setup check test shell baseline workload after diff poll clean
 
 help:
 	@echo "targets:"
 	@echo "  setup      install qemu / nvme-cli / virtme-ng (uses sudo)"
 	@echo "  check      report tool + emulation-support status"
+	@echo "  test       run the explore.py unit tests (no device needed)"
 	@echo "  shell      interactive shell in the emulated-device VM"
 	@echo "  baseline   capture output/baseline.json in the VM"
 	@echo "  workload   run a small write + trim workload in the VM"
@@ -21,6 +22,9 @@ setup:
 
 check:
 	./env/setup.sh --check
+
+test:
+	python3 -m unittest discover -s tests -v
 
 shell:
 	./env/up.sh

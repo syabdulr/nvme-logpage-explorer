@@ -26,7 +26,7 @@ import sqlite3
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -367,8 +367,8 @@ def build_snapshot(dev: Device, sections: Iterable[str]) -> dict:
             snap["log_pages"][name] = collector(dev)
         except NvmeError as exc:
             snap["log_pages"][name] = {"_error": str(exc)}
-    raw_smart = snap["log_pages"].get("smart_health", {})
-    if isinstance(raw_smart, dict):
+    raw_smart = snap["log_pages"].get("smart_health")
+    if isinstance(raw_smart, dict) and "_error" not in raw_smart:
         snap["smart_normalised"] = normalise_smart(raw_smart)
         snap["smart_normalised"]["critical_warning_decoded"] = decode_critical_warning(
             snap["smart_normalised"].get("critical_warning")
