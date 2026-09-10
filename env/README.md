@@ -30,7 +30,10 @@ script also `modprobe nvme` as a fallback.
 Boots a full Ubuntu 24.04 minimal cloud image under plain QEMU. Slower first
 boot (cloud-init installs `nvme-cli`), but self-contained and identical to how
 you'd stand this up on a machine without virtme-ng. SSH on `localhost:2222`, repo
-exported read-only at `/mnt/repo` over 9p.
+exported read-only at `/mnt/repo` over 9p. Needs `cloud-image-utils`
+(`cloud-localds`) for the seed ISO — `env/setup.sh` installs it. The findings in
+`docs/` were captured via Path A; Path B is provided for reproducibility on other
+machines.
 
 ```
 env/launch-qemu.sh up                 # download image + boot + wait for ssh

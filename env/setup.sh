@@ -7,7 +7,9 @@ set -euo pipefail
 
 ENV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-PKGS=(qemu-system-x86 qemu-utils nvme-cli busybox-static)
+# qemu-system-x86 + nvme-cli: core. busybox-static: virtme-ng initramfs.
+# cloud-image-utils: only the env/launch-qemu.sh fallback needs it (seed ISO).
+PKGS=(qemu-system-x86 qemu-utils nvme-cli busybox-static cloud-image-utils)
 
 KREL="$(uname -r)"
 KIMG="/boot/vmlinuz-$KREL"
