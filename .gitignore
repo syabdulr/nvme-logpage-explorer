@@ -20,3 +20,8 @@ venv/
 *.swp
 .idea/
 .vscode/
+
+# Python packaging build artifacts
+build/
+dist/
+*.egg-info/
