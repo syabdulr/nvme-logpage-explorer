@@ -112,9 +112,8 @@ class TestThresholdRules(unittest.TestCase):
                             for x in warn))
         crit = explore.evaluate(self._snap(percentage_used=100),
                                 explore.Thresholds())
-        self.assertTrue if False else self.assertTrue(
-            any(x.severity == "CRITICAL" and x.rule == "percentage_used"
-                for x in crit))
+        self.assertTrue(any(x.severity == "CRITICAL" and x.rule == "percentage_used"
+                            for x in crit))
 
     def test_temperature_warn(self):
         f = explore.evaluate(self._snap(temperature_c=75),
@@ -139,6 +138,24 @@ class TestDiffFlatten(unittest.TestCase):
         self.assertEqual(
             a["ocp_smart_health_extended.Physical media units written.lo"],
             32 * 1024 * 1024)
+
+
+class TestLibraryApi(unittest.TestCase):
+    def test_compute_diff_returns_changes(self):
+        before = json.loads((SAMPLES / "baseline.json").read_text())
+        after = json.loads((SAMPLES / "after.json").read_text())
+        changes = explore.compute_diff(before, after)
+        self.assertTrue(changes)
+        by_path = {c.path: c for c in changes}
+        w = by_path["smart_health.data_units_written"]
+        self.assertEqual(w.before, 0)
+        self.assertEqual(w.delta, w.after - w.before)
+        self.assertIn("path", w.as_dict())
+
+    def test_evaluate_default_thresholds(self):
+        snap = json.loads((SAMPLES / "baseline.json").read_text())
+        findings = explore.evaluate(snap)  # no Thresholds arg
+        self.assertTrue(all(hasattr(f, "severity") for f in findings))
 
 
 if __name__ == "__main__":

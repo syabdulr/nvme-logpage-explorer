@@ -1,0 +1,2 @@
+[console_scripts]
+nvme-explore = explore:main

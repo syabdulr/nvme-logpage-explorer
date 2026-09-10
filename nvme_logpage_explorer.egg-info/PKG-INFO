@@ -1,3 +1,16 @@
+Metadata-Version: 2.4
+Name: nvme-logpage-explorer
+Version: 0.2.0
+Summary: Issue and parse core NVMe admin commands (Identify, SMART, Get Log Page, Trim, OCP 0xC0) against a device
+Author: Abdul Syed
+License: MIT
+Project-URL: Repository, https://github.com/syabdulr/nvme-logpage-explorer
+Keywords: nvme,nvme-cli,smart,ocp,storage,ssd
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: license-file
+
 # NVMe Command & Log Page Explorer
 
 Issue the core NVMe admin commands named in datacenter SSD test work — **Identify,
@@ -66,28 +79,6 @@ or step through it by hand:
 
 `make help` lists the wrapped targets. See `env/README.md` for how the emulated
 device is built and the portable plain-QEMU fallback.
-
-## Use as a library
-
-Installable (stdlib only), and the capture / diff / rule logic is importable —
-[`nvme-failure-injection-harness`](https://github.com/syabdulr/nvme-failure-injection-harness)
-builds on it:
-
-```bash
-pip install git+https://github.com/syabdulr/nvme-logpage-explorer.git
-```
-
-```python
-from explore import snapshot, compute_diff, evaluate, Thresholds
-
-before = snapshot()                        # {meta, log_pages, smart_normalised}
-# ... exercise the device ...
-after = snapshot()
-for c in compute_diff(before, after):
-    print(c.path, c.before, "->", c.after, c.delta)
-for f in evaluate(after, Thresholds(used_warn=80)):
-    print(f.severity, f.rule, f.message)
-```
 
 ## Results
 

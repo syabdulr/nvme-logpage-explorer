@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nvme-logpage-explorer"
+version = "0.2.0"
+description = "Issue and parse core NVMe admin commands (Identify, SMART, Get Log Page, Trim, OCP 0xC0) against a device"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Abdul Syed" }]
+keywords = ["nvme", "nvme-cli", "smart", "ocp", "storage", "ssd"]
+dependencies = []  # stdlib only
+
+[project.urls]
+Repository = "https://github.com/syabdulr/nvme-logpage-explorer"
+
+[project.scripts]
+nvme-explore = "explore:main"
+
+[tool.setuptools]
+py-modules = ["explore"]
