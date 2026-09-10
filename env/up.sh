@@ -46,7 +46,8 @@ fi
 # in the r/w-shared output dir so the guest can read it.
 RUNNER="$REPO_ROOT/output/.guest-exec.sh"
 {
-  echo '#!/bin/sh'
+  # bash, not sh: printf %q below can emit $'...' ANSI-C quoting that dash rejects
+  echo '#!/bin/bash'
   echo 'set -e'
   echo 'modprobe nvme 2>/dev/null || true'
   echo 'i=0; while [ ! -e /dev/nvme0n1 ] && [ $i -lt 50 ]; do i=$((i+1)); sleep 0.1; done'
