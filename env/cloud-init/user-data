@@ -1,0 +1,27 @@
+#cloud-config
+# NoCloud seed for the plain-QEMU fallback guest (env/launch-qemu.sh).
+hostname: nvme-lab
+users:
+  - name: lab
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    shell: /bin/bash
+    lock_passwd: false
+    # password: "lab" (for console login; SSH uses the key injected by launch-qemu.sh)
+    passwd: "$6$rounds=4096$saltsalt$3xkknJ8k6f8Zq0m4Qpq0V0oQ0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m0m1"
+    ssh_authorized_keys:
+      - SSH_PUBKEY_PLACEHOLDER
+
+package_update: true
+packages:
+  - nvme-cli
+  - python3
+
+write_files:
+  - path: /etc/modules-load.d/nvme.conf
+    content: "nvme\n"
+
+runcmd:
+  - [ modprobe, nvme ]
+  - [ mkdir, -p, /mnt/repo ]
+  - [ sh, -c, "echo 'repo /mnt/repo 9p trans=virtio,version=9p2000.L,ro 0 0' >> /etc/fstab" ]
+  - [ mount, -a ]

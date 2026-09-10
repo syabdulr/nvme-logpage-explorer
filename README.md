@@ -1,0 +1,86 @@
+# NVMe Command & Log Page Explorer
+
+Issue the core NVMe admin commands named in datacenter SSD test work — **Identify,
+SMART/Health, Get Log Page, Dataset Management (Trim), and the OCP extended
+health log** — against a live device, then parse and aggregate the telemetry the
+way a monitoring or qualification pipeline would.
+
+The device here is a QEMU-emulated NVMe controller with the OCP Datacenter SSD
+feature set enabled, so the whole thing runs on a laptop with no special
+hardware. Every command in `docs/command-reference.md` is a real command issued
+to a real (emulated) controller through `nvme-cli`; the findings in
+`docs/findings.md` are recorded from actual output, not from the spec.
+
+## What this exercises
+
+| Area | Command(s) | Log Page ID |
+|---|---|---|
+| Controller / namespace identify | `nvme id-ctrl`, `nvme id-ns` | Identify (opcode 0x06), not a log page |
+| SMART / Health | `nvme smart-log`, `nvme get-log --log-id 0x02` | 0x02 |
+| Error Information | `nvme error-log`, `nvme get-log --log-id 0x01` | 0x01 |
+| Firmware Slot Info | `nvme fw-log` | 0x03 |
+| Commands Supported & Effects | `nvme effects-log` | 0x05 |
+| OCP SMART / Health Extended | `nvme ocp smart-add-log` | 0xC0 |
+| Trim / Deallocate | `nvme dsm --ad` | Dataset Management (opcode 0x09) |
+
+The point of pulling SMART both ways — the `smart-log` convenience command and a
+raw `get-log --log-id 0x02` — is to show the convenience commands are thin
+wrappers over one generic Get Log Page mechanism parameterised by a log
+identifier, offset, and length.
+
+## The tool: `explore.py`
+
+`explore.py` shells out to `nvme-cli` with `-o json`, normalises the output, and
+builds tooling around it:
+
+- **`snapshot`** — pull every log page above into one timestamped JSON document
+- **`poll`** — sample SMART + OCP health on an interval into SQLite / CSV for
+  trend analysis
+- **`diff`** — structural diff of two snapshots (what moved after a workload)
+- **`check`** — threshold rules over a snapshot: `available_spare` below its
+  reported threshold, `percentage_used` at or above a limit, non-zero
+  `critical_warning`, `media_errors` or `num_err_log_entries` incrementing
+  between samples
+
+This mirrors a real SSD-qualification loop: define an expected state, run a
+workload, re-pull the logs, and flag what changed.
+
+## Running it
+
+```bash
+# 1. one-time host setup (installs qemu, nvme-cli; no image download for the vng path)
+./env/setup.sh
+
+# 2. bring up the emulated OCP NVMe device and drop into it
+./env/up.sh                 # boots a VM sharing this repo, device at /dev/nvme0n1
+
+# 3. inside the guest
+python3 explore.py snapshot -o output/baseline.json
+python3 explore.py check output/baseline.json
+sudo nvme dsm /dev/nvme0n1 --slbs 0 --blocks 128 --ad
+python3 explore.py snapshot -o output/after-trim.json
+python3 explore.py diff output/baseline.json output/after-trim.json
+```
+
+See `env/README.md` for how the emulated device is built (backing file, OCP
+parameters, and the plain-QEMU fallback if you'd rather boot a full guest
+image).
+
+## Honest note on emulation
+
+QEMU's NVMe model implements the command *interface* faithfully but many
+wear/media counters (`media_errors`, `data_units_written`, most OCP 0xC0
+fields) are static or zero — there is no real NAND underneath. Where a field
+only moves on real silicon, `docs/findings.md` says so. The command paths, the
+JSON parsing, the log-page semantics, and the tooling are all real and would
+run unchanged against a physical drive.
+
+## Layout
+
+```
+explore.py                 the tool
+env/                       emulated-device setup (vng + plain-QEMU fallback)
+docs/command-reference.md  every command, annotated
+docs/findings.md           recorded output + the OCP-vs-standard-SMART comparison
+samples/project1/          committed JSON captures for reference
+```

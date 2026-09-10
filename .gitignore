@@ -1,0 +1,22 @@
+# Emulated device artifacts
+*.raw
+*.img
+*.qcow2
+env/seed.iso
+env/cloud-init/seed/
+
+# Tool output (regenerated; curated captures live in samples/)
+output/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
