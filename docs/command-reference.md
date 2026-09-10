@@ -19,11 +19,17 @@ step.
 - **id-ctrl**: `mn` (model), `sn` (serial), `fr` (firmware rev), `oncs`
   (optional NVM commands — bit 2 = Dataset Management supported), `lpa` (log page
   attributes — bit 0 = per-namespace SMART, bit 1 = Commands Supported & Effects
-  log), `elpe` (error log page entries), `mdts` (max data transfer size).
+  log), `elpe` (error log page entries, 0-based), `mdts` (max data transfer size).
 - **id-ns**: `nsze` / `ncap` / `nuse` (size / capacity / in-use, in logical
-  blocks), `lbaf` array + `flbas` (formatted LBA size — the active `lbaf` gives
-  the block size, e.g. 2^12 = 4096), `nsfeat` bit 0 = thin provisioning /
+  blocks), `lbafs` array + `flbas` (formatted LBA size — the active `lbaf` gives
+  the block size as `2^ds`), `nsfeat` bit 0 = thin provisioning /
   deallocate reporting.
+
+Observed on this device (`output/baseline.json`): `oncs = 1885` → `1885 & 0x4`
+non-zero, DSM supported. `lpa = 7` → per-namespace SMART + effects log + extended
+Get-Log-Page all present. `flbas = 4` selects `lbaf` 4, whose `ds = 12` → 4096-byte
+logical blocks; `nsze = 524288` blocks → 2 GiB. `elpe = 0` → 1 error-log entry.
+`ver = 66560` = `0x10400` → NVMe 1.4.0.
 
 ## SMART / Health — Log Page `0x02`
 

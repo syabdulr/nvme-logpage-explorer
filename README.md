@@ -48,23 +48,43 @@ workload, re-pull the logs, and flag what changed.
 ## Running it
 
 ```bash
-# 1. one-time host setup (installs qemu, nvme-cli; no image download for the vng path)
-./env/setup.sh
-
-# 2. bring up the emulated OCP NVMe device and drop into it
-./env/up.sh                 # boots a VM sharing this repo, device at /dev/nvme0n1
-
-# 3. inside the guest
-python3 explore.py snapshot -o output/baseline.json
-python3 explore.py check output/baseline.json
-sudo nvme dsm /dev/nvme0n1 --slbs 0 --blocks 128 --ad
-python3 explore.py snapshot -o output/after-trim.json
-python3 explore.py diff output/baseline.json output/after-trim.json
+./env/setup.sh                       # one-time: qemu, nvme-cli, virtme-ng (uses sudo)
+./env/up.sh -- scripts/capture.sh    # boot VM, run the full baseline→workload→diff→poll sequence
 ```
 
-See `env/README.md` for how the emulated device is built (backing file, OCP
-parameters, and the plain-QEMU fallback if you'd rather boot a full guest
-image).
+or step through it by hand:
+
+```bash
+./env/up.sh                                    # interactive shell in the VM, device at /dev/nvme0n1
+  python3 explore.py snapshot -o output/baseline.json
+  python3 explore.py check output/baseline.json
+  dd if=/dev/zero of=/dev/nvme0n1 bs=1M count=32 oflag=direct
+  nvme dsm /dev/nvme0n1 --slbs 0 --blocks 4096 --ad
+  python3 explore.py snapshot -o output/after.json
+  python3 explore.py diff output/baseline.json output/after.json
+```
+
+`make help` lists the wrapped targets. See `env/README.md` for how the emulated
+device is built and the portable plain-QEMU fallback.
+
+## Results
+
+Full write-up with real values in [`docs/findings.md`](docs/findings.md). Headlines
+from `samples/project1/` (QEMU 10.2.1, nvme-cli 2.16, NVMe 1.4.0 device):
+
+- **`smart-log` proven identical to `get-log --log-id 0x02`** — raw bytes decoded
+  by hand (`00 43 01 …` → crit 0, temp 323 K, …) match the convenience command
+  field-for-field.
+- **OCP 0xC0 vs standard SMART** — 0xC0 (GUID `0xafd5…afc5`) adds physical media
+  units, bad-NAND-block counts, ECC/XOR/E2E error counts, PLP capacitor health,
+  PCIe error counts; standard 0x02 has none of these.
+- **Workload diff** — a 32 MiB write shows up as exactly `33 554 432` in OCP
+  *Physical Media Units Written* (bytes) and `+66` `data_units_written`
+  (512 000-byte units); the raw log-page byte at offset 32 moves `0x02 → 0x46`.
+- **Trim** — `nvme dsm --ad` succeeds but `nuse` is unchanged because the
+  namespace doesn't advertise thin provisioning (`nsfeat` bit 0 clear) — a
+  concrete example of a command completing while its *observable* effect depends
+  on namespace configuration.
 
 ## Honest note on emulation
 

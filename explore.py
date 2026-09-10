@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import shutil
 import sqlite3
 import subprocess
@@ -47,17 +48,38 @@ def _nvme_bin() -> str:
     return path
 
 
-def _run(args: list[str], *, use_sudo: bool = False) -> str:
+def _need_sudo(requested: bool) -> bool:
+    # nvme admin commands need CAP_SYS_ADMIN; skip the sudo hop if already root.
+    return requested and os.geteuid() != 0 and shutil.which("sudo") is not None
+
+
+def _cmd(args: list[str], *, use_sudo: bool) -> list[str]:
     cmd: list[str] = []
-    if use_sudo and shutil.which("sudo"):
+    if _need_sudo(use_sudo):
         cmd.append("sudo")
     cmd.append(_nvme_bin())
     cmd.extend(args)
+    return cmd
+
+
+def _run(args: list[str], *, use_sudo: bool = False) -> str:
+    cmd = _cmd(args, use_sudo=use_sudo)
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         raise NvmeError(
             f"`{' '.join(cmd)}` exited {proc.returncode}: "
             f"{proc.stderr.strip() or proc.stdout.strip()}"
+        )
+    return proc.stdout
+
+
+def _run_bytes(args: list[str], *, use_sudo: bool = True) -> bytes:
+    cmd = _cmd(args, use_sudo=use_sudo)
+    proc = subprocess.run(cmd, capture_output=True)
+    if proc.returncode != 0:
+        raise NvmeError(
+            f"`{' '.join(cmd)}` exited {proc.returncode}: "
+            f"{proc.stderr.decode(errors='replace').strip()}"
         )
     return proc.stdout
 
@@ -182,13 +204,63 @@ def collect_ocp_smart(dev: Device) -> Any:
     return {"_unavailable": "nvme ocp smart-add-log not supported by device/plugin"}
 
 
+def _u(b: bytes) -> int:
+    return int.from_bytes(b, "little")
+
+
+def decode_smart_log_page(raw: bytes) -> dict:
+    """Decode the fields of the 512-byte SMART/Health log page (LID 0x02)."""
+    if len(raw) < 512:
+        raise NvmeError(f"short SMART log page: {len(raw)} bytes")
+    return {
+        "critical_warning": raw[0],
+        "composite_temperature_k": _u(raw[1:3]),
+        "available_spare": raw[3],
+        "available_spare_threshold": raw[4],
+        "percentage_used": raw[5],
+        "data_units_read": _u(raw[32:48]),
+        "data_units_written": _u(raw[48:64]),
+        "host_read_commands": _u(raw[64:80]),
+        "host_write_commands": _u(raw[80:96]),
+        "power_on_hours": _u(raw[128:144]),
+        "media_errors": _u(raw[160:176]),
+        "num_err_log_entries": _u(raw[176:192]),
+    }
+
+
 def collect_generic_getlog_smart(dev: Device) -> Any:
-    """Prove smart-log is just Get Log Page LID 0x02 under the hood."""
+    """
+    Pull LID 0x02 via the *generic* Get Log Page path (raw bytes), decode it
+    here, and confirm it agrees with the `smart-log` convenience command —
+    they are the same log page.
+    """
     try:
-        return nvme_json(["get-log", dev.controller,
-                          "--log-id", "0x02", "--log-len", "512"])
+        raw = _run_bytes(["get-log", dev.controller,
+                          "--log-id", "0x02", "--log-len", "512", "--raw-binary"])
     except NvmeError as exc:
         return {"_error": str(exc)}
+    try:
+        decoded = decode_smart_log_page(raw)
+    except NvmeError as exc:
+        return {"_error": str(exc), "raw_first_16_hex": raw[:16].hex(" ")}
+
+    result = {
+        "method": "nvme get-log --log-id 0x02 --log-len 512 --raw-binary",
+        "raw_first_48_hex": raw[:48].hex(" "),
+        "decoded": decoded,
+    }
+    try:
+        smart = normalise_smart(collect_smart(dev))
+        agree = (
+            decoded["critical_warning"] == smart.get("critical_warning")
+            and decoded["composite_temperature_k"] == smart.get("temperature_k")
+            and decoded["percentage_used"] == smart.get("percentage_used")
+            and decoded["data_units_read"] == smart.get("data_units_read")
+        )
+        result["matches_smart_log_command"] = bool(agree)
+    except NvmeError:
+        pass
+    return result
 
 
 COLLECTORS = {
@@ -492,7 +564,13 @@ def evaluate(snap: dict, t: Thresholds) -> list[Finding]:
 
     spare = s.get("available_spare")
     thr = s.get("available_spare_threshold")
-    if isinstance(spare, int) and isinstance(thr, int):
+    if spare == 0 and thr == 0:
+        # QEMU and some real drives report 0/0 to mean "spare not tracked"
+        findings.append(Finding(
+            "INFO", "available_spare",
+            "available spare and threshold both 0 — device does not report spare",
+            spare))
+    elif isinstance(spare, int) and isinstance(thr, int) and thr > 0:
         if spare <= thr:
             findings.append(Finding(
                 "CRITICAL", "available_spare",
@@ -555,10 +633,12 @@ def cmd_check(args: argparse.Namespace) -> int:
         return 0
 
     worst = max(SEVERITIES[f.severity] for f in findings)
-    print(f"{dev_str}: {len(findings)} finding(s)\n")
+    verdict = {0: "OK", 1: "WARN", 2: "CRITICAL"}[worst]
+    print(f"{verdict}  {dev_str}: {len(findings)} finding(s)\n")
     for f in findings:
         print(f"  [{f.severity:8}] {f.rule}: {f.message}")
-    return 2 if worst == SEVERITIES["CRITICAL"] else 1
+    # exit code = worst severity (0 OK/INFO, 1 WARN, 2 CRITICAL) for CI gating
+    return worst
 
 
 # --------------------------------------------------------------------------- #
