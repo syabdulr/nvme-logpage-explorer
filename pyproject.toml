@@ -13,11 +13,15 @@ authors = [{ name = "Abdul Syed" }]
 keywords = ["nvme", "nvme-cli", "smart", "ocp", "storage", "ssd"]
 dependencies = []  # stdlib only
 
+[project.optional-dependencies]
+analysis = ["pandas>=2.0", "numpy>=1.24"]  # analyze_telemetry.py only
+
 [project.urls]
 Repository = "https://github.com/syabdulr/nvme-logpage-explorer"
 
 [project.scripts]
 nvme-explore = "explore:main"
+nvme-analyze-telemetry = "analyze_telemetry:main"
 
 [tool.setuptools]
-py-modules = ["explore"]
+py-modules = ["explore", "analyze_telemetry"]

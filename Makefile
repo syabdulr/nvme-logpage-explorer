@@ -2,7 +2,7 @@ MAKEFLAGS += --no-print-directory
 NS ?= /dev/nvme0n1
 CTRL ?= /dev/nvme0
 
-.PHONY: help setup check test shell baseline workload after diff poll clean
+.PHONY: help setup check test shell baseline workload after diff poll analyze clean
 
 help:
 	@echo "targets:"
@@ -15,6 +15,7 @@ help:
 	@echo "  after      capture output/after.json in the VM"
 	@echo "  diff       diff baseline.json vs after.json"
 	@echo "  poll       30s SMART poll -> output/telemetry.sqlite (+ .csv)"
+	@echo "  analyze    pandas/numpy trend analysis over output/telemetry.csv"
 	@echo "  clean      remove output/ and the backing file"
 
 setup:
@@ -45,6 +46,9 @@ diff:
 poll:
 	./env/up.sh -- python3 explore.py poll --interval 3 --count 10 \
 		--database output/telemetry.sqlite --csv output/telemetry.csv
+
+analyze:
+	python3 analyze_telemetry.py output/telemetry.csv
 
 clean:
 	rm -rf output env/nvme-backing.raw

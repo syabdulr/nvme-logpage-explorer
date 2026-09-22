@@ -1,8 +1,11 @@
 # Findings
 
 Recorded from actual runs against the emulated OCP NVMe controller. The curated
-captures referenced here are committed under `samples/project1/`; regenerate the
-whole set with `env/up.sh -- scripts/capture.sh`.
+captures referenced here are committed under [`samples/project1/`](../samples/README.md);
+regenerate the whole set with `env/up.sh -- scripts/capture.sh`. See
+[`docs/command-reference.md`](command-reference.md) for what each command means
+and [`env/README.md`](../env/README.md) for how the device is built; the
+[top-level README](../README.md) covers `explore.py` itself.
 
 ## Environment
 
@@ -153,3 +156,33 @@ there is no `nuse` accounting to observe it in. A namespace created with
 Every command path, status code, log-page layout, and JSON shape the tool
 handles is real. What emulation cannot provide is the physics the counters
 measure — so the tool is exercised here and would run unchanged against hardware.
+
+## 8. Trend analysis over a poll window — `analyze_telemetry.py`
+
+`check` evaluates one snapshot against fixed thresholds; it can't see a slow
+drift across many samples. `analyze_telemetry.py` (pandas + numpy,
+`pip install -r requirements-analysis.txt`) fits a linear slope per tracked
+column over the `poll --csv` window and flags the wrong-direction ones.
+
+Run against the real committed capture, `samples/project1/telemetry.csv` (10
+samples, 9 idle seconds): **no adverse trends detected** — every column is
+flat, which is the correct answer for an idle drive with no workload between
+samples.
+
+To confirm the slope/threshold logic actually fires rather than always
+returning clean, `samples/project1/telemetry_degrading_synthetic.csv` is a
+hand-authored 12-row series (spare draining 100→67, `media_errors` and
+`num_err_log_entries` climbing from hour 6). Against it:
+
+```
+[WARN] available_spare_trend: available_spare trending down at -3.0000/hr across 12 samples (100 -> 67)
+[WARN] percentage_used_trend: percentage_used trending up at +2.0000/hr across 12 samples (0 -> 22)
+[CRITICAL] media_errors_trend: media_errors trending up at +0.5629/hr across 12 samples (0 -> 6)
+[CRITICAL] num_err_log_entries_trend: num_err_log_entries trending up at +0.5629/hr across 12 samples (0 -> 6)
+```
+
+This file is clearly labeled synthetic, not a real capture — QEMU doesn't
+move these counters (see the limitations table above), so a real degrading
+series isn't something this environment can produce. The synthetic case
+exists solely to prove the detector's logic is correct; `tests/test_analyze_telemetry.py`
+asserts both the flat-real-sample and the synthetic-degradation cases.

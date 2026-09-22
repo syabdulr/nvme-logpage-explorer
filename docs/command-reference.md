@@ -3,7 +3,10 @@
 Every command the project issues, what it maps to at the protocol level, and the
 fields worth reading in the output. Device nodes below: `/dev/nvme0` is the
 **controller** (admin commands), `/dev/nvme0n1` is the **namespace** (I/O and
-namespace-scoped commands).
+namespace-scoped commands). See the [top-level README](../README.md) for the
+tool that wraps these commands and [`docs/findings.md`](findings.md) for real
+output captured from each one; [`env/README.md`](../env/README.md) covers how
+the emulated device these run against is built.
 
 ## Identify — `nvme id-ctrl` / `nvme id-ns`
 
@@ -105,7 +108,7 @@ Shutdowns, % Free Blocks, Capacitor Health (PLP), Endurance Estimate, and a
 Log Page GUID that identifies the log as the OCP one.
 
 The standard-vs-OCP comparison, with the values actually observed here, is in
-`docs/findings.md`.
+[`docs/findings.md`](findings.md).
 
 ## Dataset Management / Trim — opcode `0x09`
 

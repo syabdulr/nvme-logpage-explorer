@@ -1,6 +1,8 @@
 # Emulated NVMe device
 
-Both launch paths attach the **same** emulated controller: a QEMU `nvme` device
+See the [top-level README](../README.md) for `explore.py` itself and
+[`docs/findings.md`](../docs/findings.md) for what running against this device
+actually produced. Both launch paths attach the **same** emulated controller: a QEMU `nvme` device
 with the OCP Datacenter SSD feature set enabled (`ocp=on`), one namespace backed
 by a raw file (`env/nvme-backing.raw`, git-ignored), 4 KiB logical blocks, and a
 32 KiB discard granularity so Dataset Management / Trim has a visible effect.
